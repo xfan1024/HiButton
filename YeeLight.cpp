@@ -73,6 +73,7 @@ public:
     {
         if (!connected())
             return;
+        logi() << "power toggle";
         JsonDocumentType request;
         send_request("toggle", request, &YeeLightImpl::cb_donot_care);
     }
@@ -87,8 +88,9 @@ public:
         request.createNestedArray("params");
         request["params"][0] = "on";
         request["params"][1] = "smooth";
-        request["params"][2] = 1000;
+        request["params"][2] = 300;
         request["params"][3] = m_night_mode ? 5 : 1;
+        logi() << "mode toggle: " << (m_night_mode ? "night" : "normal");
         send_request("set_power", request, &YeeLightImpl::cb_donot_care);
     }
 
