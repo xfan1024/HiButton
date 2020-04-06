@@ -1,3 +1,4 @@
+#include <ESP8266WiFi.h>
 #include "common.h"
 
 class NullStream : public Stream
@@ -24,8 +25,17 @@ public:
 static NullStream null_stream;
 static HardwareSerial debug_serial(0);
 
+static String device_id;
+static String softap_name;
+
 void common_init()
 {
+    device_id = WiFi.macAddress();
+    device_id.replace(":", "");
+    softap_name = get_device_type();
+    softap_name += "-";
+    softap_name += device_id.substring(device_id.length() - 4);
+
     debug_serial.begin(115200);
     debug_serial << "\n\nstartup\n";
 }
@@ -52,4 +62,19 @@ void common_panic_func(const char *msg, const char *func, const char *file, int 
     delay(10);
     ESP.restart();
     while (1);
+}
+
+const char* get_device_type()
+{
+    return "HiButton";
+}
+
+const char* get_device_id()
+{
+    return device_id.c_str();
+}
+
+const char* get_softap_name()
+{
+    return softap_name.c_str();
 }

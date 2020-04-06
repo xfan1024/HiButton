@@ -15,4 +15,9 @@ void common_panic_func(const char *msg, const char *func, const char *file, int 
 Print& get_debug_stream();
 Print& get_null_stream();
 
+const char* get_device_type();
+const char* get_device_id();
+const char* get_softap_name();
+
+
 #endif
