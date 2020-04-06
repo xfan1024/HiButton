@@ -3,6 +3,7 @@
 
 #define DEBOUNCING_TIME 30
 #define DOUBLE_CLICK_INTERVAL_MAX 300
+#define LONG_PRESS_MIN 3000
 
 enum
 {
@@ -10,7 +11,7 @@ enum
     S_pressed_debouncing,
     S_pressed_confirmed,
     S_unpressed_wait_next,
-    S_pressed_double_click,
+    S_pressed_wait_unpressed,
     S_max
 };
 
@@ -22,7 +23,7 @@ static const char *str_state(unsigned int state)
         "pressed_debouncing",
         "pressed_confirmed",
         "unpressed_wait_next",
-        "pressed_double_click",
+        "pressed_wait_unpressed",
     };
     if (state >= S_max)
         return "unknown";
@@ -47,6 +48,11 @@ public:
     void on_double_click_callback(const ButtonTask::click_callback_type& cb)
     {
         m_double_click_cb = cb;
+    }
+
+    void on_long_press_callback(const ButtonTask::click_callback_type& cb)
+    {
+        m_long_press_cb = cb;
     }
 
 protected:
@@ -76,7 +82,15 @@ protected:
             break;
         case S_pressed_confirmed:
             if (pressed)
+            {
+                if (elapsed > LONG_PRESS_MIN)
+                {
+                    if (m_long_press_cb)
+                        m_long_press_cb();
+                    change_state(S_pressed_wait_unpressed);
+                }
                 return;
+            }
             change_state(S_unpressed_wait_next);
             m_privous_time = current;
             break;
@@ -84,7 +98,7 @@ protected:
             if (pressed && elapsed <= DOUBLE_CLICK_INTERVAL_MAX)
             {
                 logv() << "double-click interval: " << elapsed << "ms";
-                change_state(S_pressed_double_click);
+                change_state(S_pressed_wait_unpressed);
                 if (m_double_click_cb)
                 {
                     logd() << "trigger double-click event";
@@ -101,7 +115,7 @@ protected:
                 }
             }
             break;
-        case S_pressed_double_click:
+        case S_pressed_wait_unpressed:
             if (!pressed)
                 change_state(S_unpressed_free);
             break;
@@ -138,6 +152,7 @@ private:
     unsigned int m_state;
     ButtonTask::click_callback_type m_click_cb;
     ButtonTask::click_callback_type m_double_click_cb;
+    ButtonTask::click_callback_type m_long_press_cb;
 };
 
 
@@ -162,5 +177,10 @@ void ButtonTask::on_click_callback(const click_callback_type& cb)
 void ButtonTask::on_double_click_callback(const click_callback_type& cb)
 {
     as_button_impl(m_impl)->on_double_click_callback(cb);
+}
+
+void ButtonTask::on_long_press_callback(const click_callback_type& cb)
+{
+    as_button_impl(m_impl)->on_long_press_callback(cb);
 }
 
