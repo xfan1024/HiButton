@@ -7,6 +7,7 @@
 
 constexpr unsigned int heartbeat_interval = 5*1000;
 constexpr unsigned int timeout_ms = 10*1000;
+constexpr unsigned int connect_wait_interval = 5*1000;
 
 enum
 {
@@ -106,12 +107,19 @@ protected:
         {
             case S_disconnect:
             {
-                if (m_remote == IPAddress())
-                    break;
-                if (m_client.connect(m_remote, 55443)) {
-                    logd() << "async connect to " << m_remote.toString();
-                    change_state(S_connecting);
+                if (!m_wait_connect_is_set)
+                {
+                    m_wait_connect_is_set = true;
+                    m_last_active = millis();
+                    return;
                 }
+                if (millis() - m_last_active < connect_wait_interval)
+                    return;
+
+                m_wait_connect_is_set = false;
+                logd() << "async connect to " << m_remote.toString();
+                if (m_client.connect(m_remote, 55443))
+                    change_state(S_connecting);
                 break;
             }
             case S_ready:
@@ -132,8 +140,9 @@ protected:
 
     void on_stop() override
     {
+        m_client.close(true);
+        clear_connection();
         change_state(S_stop);
-        close_connection();
     }
 
     const char* get_name() const override
@@ -147,15 +156,26 @@ private:
     {
         logv() << "state change from " << m_state << "(" << str_state(m_state) << ") to " << state << "(" << str_state(state) << ")";
         m_state = state;
+        if (state == S_disconnect)
+        {
+            m_wait_connect_is_set = false;
+        }
+    }
+
+    void clear_connection()
+    {
+        m_resp_cb = nullptr;
+        m_recv_buf = std::string();
+        m_next_request.clear();
+        m_next_resp_cb = nullptr;
     }
 
     void close_connection()
     {
-        common_panic_assert(m_state == S_connecting || m_state == S_ready || m_state == S_busy);
+        common_panic_assert(m_state == S_ready || m_state == S_busy);
         change_state(S_disconnecting);
-        m_client.close();
-        m_resp_cb = nullptr;
-        m_recv_buf = std::string();
+        m_client.close(true);
+        common_panic_assert(m_state == S_disconnect);
     }
 
     void send_request(const char *method, JsonDocumentType &request, response_callback_type cb)
@@ -208,8 +228,8 @@ private:
     void on_disconnect()
     {
         logi() << "disconnected";
-        if (m_state != S_stop)
-            m_state = S_disconnect;
+        change_state(S_disconnect);
+        clear_connection();
     }
 
     void on_data(const void *data, size_t len)
@@ -287,7 +307,8 @@ private:
     }
 
 private:
-    int m_state;
+    bool m_wait_connect_is_set;
+    int m_state {S_stop};
     unsigned long m_last_active;
     bool m_night_mode;
     AsyncClient m_client;
